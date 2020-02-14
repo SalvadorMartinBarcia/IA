@@ -61,7 +61,10 @@
     OUTPUT: list of pairs, such that
                the first element of the pair is elt.
                the second element is an element from lst"
- )
+
+	 (if	(null lst)
+	  nil
+	   (append (list ( list elt (first lst) ) ) (combine-elt-lst elt (rest lst)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defun combine-list-of-lsts (lolsts)
