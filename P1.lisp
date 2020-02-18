@@ -15,11 +15,11 @@
     OUTPUT: estimation of the zero of f, NIL if not converged"
 
             (let ((xN (- x0 (/ (funcall f x0) (funcall df-dx x0)))))
-              (cond ((<= max-iter 0) 
+              (cond ((<= max-iter 0)
                       nil)
-                  ((< (abs (- 0 (/ (funcall f x0) (funcall df-dx x0)))) tol-abs) 
+                  ((< (abs (- 0 (/ (funcall f x0) (funcall df-dx x0)))) tol-abs)
                       xN)
-                  ((>= (abs (- 0 (/ (funcall f x0) (funcall df-dx x0)))) tol-abs) 
+                  ((>= (abs (- 0 (/ (funcall f x0) (funcall df-dx x0)))) tol-abs)
                       (newton f df-dx (- max-iter 1) xN tol-abs)))))
 
 
@@ -47,6 +47,8 @@
 
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+------------------------------------------------------------
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
@@ -91,6 +93,9 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+------------------------------------------------------------
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (defun scalar-product (x y)
   "Calculates the scalar product of two vectors
 
@@ -102,7 +107,8 @@
 
    NOTES:
         * Implemented with mapcar"
-  )
+
+        (apply #'+ (mapcar #'* x y)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -116,7 +122,8 @@
 
 
     OUTPUT: euclidean norm of x"
-)
+
+    (sqrt (scalar-product x x))
 
 
 ________________
@@ -134,6 +141,8 @@ ________________
 
 
     OUTPUT: euclidean distance between x and y"
+
+    (euclidean-norm (mapcar #'- x y))
   )
 
 
@@ -154,8 +163,16 @@ ________________
     NOTES:
        * Evaluates to NIL (not defined)
          if at least one of the vectors has zero norm.
-       * The two vectors are assumed to have the same length"
-  )
+       * The two vectors are assumed to have the same length
+
+       -en = euclidean-norm
+       -sp = scalar-product"
+
+       (let ((en (* (euclidean-norm x) (euclidean-norm y)))
+            (sp (scalar-product x y)))
+              (if (zerop en)
+                nil
+                (/ sp en))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -175,6 +192,7 @@ ________________
         if at least one of the vectors has zero norm.
       * The two vectors are assumed to have the same length"
 
+      (/ (acos (cosine-similarity x y)) pi)
 
   )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
