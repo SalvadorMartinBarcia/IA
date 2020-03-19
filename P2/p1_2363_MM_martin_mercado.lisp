@@ -1,477 +1,494 @@
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    Lab assignment 2: Search
-;;
-;;    Data and prototypes
-;;    Revised and extended: Simone Santini, 2020/02/27
-;;                                          2019/03/07
-;;                          Alberto Su�rez, 2018/03/23
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    Problem definition
-;;
-(defstruct problem
-  cities               ; List of cities
-  initial-city         ; Initial city
-  f-h                  ; reference to a function that evaluates to the
-                       ; value of the heuristic of a state
-  f-goal-test          ; reference to a function that determines whether
-                       ; a state fulfils the goal
-  f-search-state-equal ; reference to a predictate that determines whether
-                       ; two nodes are equal, in terms of their search state
-  succ)                ; operator (reference to a function) to generate successors
-;;
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    Node in search tree
-;;
-(defstruct node
-  city            ; city in which this node places us
-  parent          ; parent node
-  action          ; action that generated the current node from its parent
-  (depth 0)       ; depth in the search tree
-  (g 0)           ; cost of the path from the initial state to this node
-  (h 0)           ; value of the heurstic
-  (f 0))          ; g + h
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    Actions
-;;
-(defstruct action
-  name              ; Name of the operator that generated the action
-  origin            ; City to which the action is applied
-  final             ; City in which we are as a result of the application of the action
-  cost)            ; Cost of the action
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    Search strategies
-;;
-(defstruct strategy
-  name              ; name of the search strategy
-  node-compare-p)   ; boolean comparison
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    END: Define structures
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (defun newton (f df-dx max-iter x0 &optional (tol-abs 0.0001))
+    "Zero of a function using the Newton-Raphson method
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;    BEGIN: Define the communication network
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defparameter *cities* '(Calais Reims Paris Nancy Orleans
-                                St-Malo Brest Nevers Limoges
-                                Roenne Lyon Toulouse Avignon Marseille))
-
-(defparameter *trains*
-  '((Paris Calais 34.0)       (Calais Paris 34.0)
-    (Reims Calais 35.0)       (Calais Reims 35.0)
-    (Nancy Reims 35.0)        (Reims Nancy 35.0)
-    (Paris Nancy 40.0)        (Nancy Paris 40.0)
-    (Paris Nevers 48.0)       (Nevers Paris 48.0)
-    (Paris Orleans 23.0)      (Orleans Paris 23.0)
-    (Paris St-Malo 40.0)      (St-Malo Paris 40.0)
-    (St-Malo Nantes 20.0)     (Nantes St-Malo 20.0)
-    (St-Malo Brest 30.0)      (Brest St-Malo 30.0)
-    (Nantes Brest 35.0)       (Brest Nantes 35.0)
-    (Nantes Orleans 37.0)     (Orleans Nantes 37.0)
-    (Nantes Toulouse 80.0)    (Toulouse Nantes 80.0)
-    (Orleans Limoges 55.0)    (Limoges Orleans 55.0)
-    (Limoges Nevers 42.0)     (Nevers Limoges 42.0)
-    (Limoges Toulouse 25.0)   (Toulouse Limoges 25.0)
-    (Toulouse Lyon 60.0)      (Lyon Toulouse 60.0)
-    (Lyon Roenne 18.0)        (Roenne Lyon  18.0)
-    (Lyon Avignon 30.0)       (Avignon Lyon 30.0)
-    (Avignon Marseille 16.0)  (Marseille Avignon 16.0)
-    (Marseille Toulouse 65.0) (Toulouse Marseille 65.0)))
+      INPUT:  f:        function whose zero we wish to find
+              df-dx:    derivative of f
+              max-iter: maximum number of iterations
+              x0:       initial estimation of the zero (seed)
+              tol-abs:  tolerance for convergence
 
 
-(defparameter *heuristic*
-  '((Calais 0.0) (Reims 25.0) (Paris 30.0)
-    (Nancy 50.0) (Orleans 55.0) (St-Malo 65.0)
-    (Nantes 75.0) (Brest 90.0) (Nevers 70.0)
-    (Limoges 100.0) (Roenne 85.0) (Lyon 105.0)
-    (Toulouse 130.0) (Avignon 135.0) (Marseille 145.0)))
-
-(defparameter *origin* 'Marseille)
-
-(defparameter *destination* '(Calais))
-
-(defparameter *mandatory* '(Paris))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN: Exercise 1 -- Evaluation of the heuristics
-;;
-;; Returns the value of the heuristics for a given state
-;;
-;;  Input:
-;;    city: the city where we are
-;;    sensors: a sensor list, that is a list of pairs
-;;                (state time-est)
-;;             where the first element is the name of a city and the second
-;;             a number estimating the costs to reach the goal
-;;
-;;  Returns:
-;;    The cost (a number) or NIL if the state is not in the sensor list
-;;
-
-(defun f-h (city heuristic)
-  (second (assoc city heuristic)))
+      OUTPUT: estimation of the zero of f, NIL if not converged"
 
 
-;;
-;; END: Exercise 1 -- Evaluation of the heuristic
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+              (let ((xN (- x0 (/ (funcall f x0) (funcall df-dx x0)))));se asigna a xN para que sea mas legible
+                (cond ((<= max-iter 0);una condicion de salida
+                        nil)
+                    ((<;la condicion de salida si encuentra el valor
+                      (abs (- 0 (/ (funcall f x0) (funcall df-dx x0))))
+                      tol-abs)
+                        xN)
+                    ((>=;el caso base
+                      (abs (- 0 (/ (funcall f x0) (funcall df-dx x0))))
+                      tol-abs)
+                        (newton f df-dx (- max-iter 1) xN tol-abs)))))
+;;; Ejemplos:
+;;;   (newton #'sin #'cos 50 2.0) ;-> 3.1415921 ;Caso del enunciado
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN: Exercise 2 -- Navigation operators
-;;
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Navigation operator
-;;
-;;  Returns the actions that can be carried out from the current city
-;;
-;;  Input:
-;;    city:       the city where we are
-;;    lst-edges:  list of edges of the graph, each element is of the
-;;                form: (source destination cost1)
-;;
-;;  Returns
-;;    A list of action structures with the origin in the current city and
-;;    the destination in the cities to which the current one is connected
-;;
-(defun navigate (city lst-edges)
-  (mapcan
-    #'(lambda (x)
-      (when (equal city (first x))
-        (list
-          (make-action :name 'action
-            :origin (first x)
-            :final (second x)
-            :cost (third x)))))
-          lst-edges)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun newton-all (f df-dx max-iter seeds &optional (tol-abs 0.0001))
+ "Zeros of a function using the Newton-Raphson method
+
+
+   INPUT:  f:        function whose zero we wish to find
+           df-dx:    derivative of f
+           max-iter: maximum number of iterations
+           seeds:    list of initial estimations of the zeros
+           tol-abs:  tolerance for convergence
+
+
+   OUTPUT: list of estimations of the zeros of f"
+          (cond
+            ((null seeds) nil));control de errores
+            (mapcar ;llamamos a newton para todas las semillas
+              #'(lambda (x0)
+                (newton f df-dx max-iter x0 tol-abs))
+            seeds))
+
+;;; Ejemplos:
+;;;   (newton-all #'sin #'cos 50 (mapcar #'eval '((/ pi 2) 1.0 2.0 4.0 6.0))) ;->(NIL 0.0 3.1415927 3.1415927 6.2831855) ;Caso del enunciado
+;;;   (newton-all #'sin #'cos 50 (mapcar #'eval '())) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun combine-elt-lst (elt lst)
+  "Combines an element with all the elements of a list
+
+
+    INPUT:  elt: element
+            lst: list
+
+
+    OUTPUT: list of pairs, such that
+               the first element of the pair is elt.
+               the second element is an element from lst"
+
+	 (if	(null lst)
+	  nil
+	  (append ;combinamos el elemento con el primer elemento de lst
+      (list (list elt (first lst)))
+      (combine-elt-lst elt (rest lst)))));solo pasamos el rest de lst
+
+;;; Ejemplos:
+;;;   (combine-elt-lst 'a '(1 2 3)) ;->((A 1) (A 2) (A 3)) ;Caso del enunciado
+;;;   (combine-elt-lst 'a '()) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun combine-lst-lst (lst1 lst2)
+  "Calculates the cartesian product of two vectors
+
+
+    INPUT:  lst1: lst
+            lst2: lst
+
+
+    OUTPUT: list of pairs, such that
+              the first element is an element from lst1.
+              the second element is an element from lst2"
+
+     (if	(null lst1)
+    	nil
+      (append
+        (combine-elt-lst(first lst1) lst2);combinamos el primero de la primera lista con la funcion anterior
+        (combine-lst-lst(rest lst1) lst2))));llamamos a esta funcion quitando el primero de lst1
+
+;;; Ejemplos:
+;;;   (combine-lst-lst '(a b c) '(1 2)) ;->((A 1) (A 2) (B 1) (B 2) (C 1) (C 2)) ;Caso del enunciado
+;;;   (combine-lst-lst '(a b c) '()) ; -> NIL ;Caso de parámetros erroneos
+;;;   (combine-lst-lst '() '(1 2)) ;-> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (defun combine-list-of-lsts-aux (lst1 all)
+      (if (null all)
+        lst1
+        (combine-list-of-lsts-aux;primer argumento las listas enlazadas lst1 y first de all
+          (mapcan
+            #'(lambda (x1)
+              (mapcar
+                 #'(lambda (x2)
+                  (if (listp x1)
+                    (append x1 (list x2))
+                    (list x1 x2)))
+                (first all)))
+          lst1)
+          (rest all)));segundo argumento solo el rest de all
   )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN: Exercise 3 -- Goal test
-;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Goal test
-;;
-;;  Returns T or NIl depending on whether a path leads to a final state
-;;
-;;  Input:
-;;    node:       node structure that contains, in the chain of parent-nodes,
-;;                a path starting at the initial state
-;;    destinations: list with the names of the destination cities
-;;    mandatory:  list with the names of the cities that is mandatory to visit
-;;
-;;  Returns
-;;    T: the path is a valid path to the final state
-;;    NIL: invalid path: either the final city is not a destination or some
-;;         of the mandatory cities are missing from the path.
-;;
-(defun f-goal-test (node destination mandatory)
-  )
-
-;;
-;; END: Exercise 3 -- Goal test
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (defun combine-list-of-lsts (lstolsts)
+    "Combinations of N elements, each of wich
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN: Exercise 4 -- Equal predicate for search states
-;;
+     INPUT:  lstolsts: list of N sublists (list1 ... listN)
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Determines if two nodes are equivalent with respect to the solution
-;; of the problem: two nodes are equivalent if they represent the same city
-;, and if the path they contain includes the same mandatory cities.
-;;  Input:
-;;    node-1, node-1: the two nodes that we are comparing, each one
-;;                    defining a path through the parent links
-;;    mandatory:  list with the names of the cities that is mandatory to visit
-;;
-;;  Returns
-;;    T: the two ndoes are equivalent
-;;    NIL: The nodes are not equivalent
-;;
-(defun f-search-state-equal (node-1 node-2 &optional mandatory)
-  )
+     OUTPUT: list of sublists of N elements, such that in each
+             sublist the first element is from list1
+                   the second element is from list 2
+                   ...
+                   the Nth element is from list N"
+          (if (null lstolsts)
+            nil
+          (combine-list-of-lsts-aux
+            (first lstolsts)
+            (rest lstolsts))));llamamos a la funcion aux
 
-;;
-;; END: Exercise  -- Equal predicate for search states
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Ejemplos:
+;;;   (combine-list-of-lsts '((a b c) (+ -) (1 2 3 4))) ;->((A + 1) (A + 2) (A + 3)
+;;;   (A + 4) (A - 1) (A - 2) (A - 3) (A - 4) (B + 1)
+;;;   (B + 2) (B + 3) (B + 4) (B - 1) (B - 2) (B - 3) (B - 4) (C + 1) (C + 2)
+;;;   (C + 3) (C + 4) (C - 1) (C - 2) (C - 3) (C - 4)) ;Caso del enunciado
+;;;   (combine-list-of-lsts '()) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;  BEGIN: Exercise 5 -- Define the problem structure
-;;
-;;
-;;  Note that the connectivity of the netowrk is implicit in the
-;;  operator: the operator takes a single parameter: a city name, and
-;;  returns a list of actions, indicating to which cities one can move
-;;  and at which cost. The lists of edges are placed as constants as
-;;  the second parameter of the navigate operator. Also note that,
-;;  while the navigate function takes as parameter a city name, the
-;;  next operator takes as parameter a node, and extract the
-;;  node-city (that is, the name of the city) before calling the
-;;  navigate function.
-;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defparameter *travel*
-  NIL)
+(defun scalar-product (x y)
+  "Calculates the scalar product of two vectors
+
+   INPUT:  x: vector, represented as a list
+           y: vector, represented as a list
+
+   OUTPUT: scalar product between x and y
 
 
-;;
-;;  END: Exercise 5 -- Define the problem structure
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   NOTES:
+        * Implemented with mapcar"
+        (cond
+          ((null x) nil)
+          ((null y) nil)
+          (T (apply #'+ ;sumamos todos los elementos de la lista
+            (mapcar #'* x y)))));multiplicamos cada xn de la lista por yn
+;;; Ejemplos:
+;;;   (scalar-product '(1 2 3) '(3 -1 5)) ;->16 ;Caso del enunciado
+;;;   (scalar-product '() '(3 -1 5)) ; -> NIL ;Caso de parámetros erroneos
+;;;   (scalar-product '(1 2 3) '()) ;-> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; euclidean-norm
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN Exercise 6: Expand node
-;;
-;; The main function of this section is "expand-node", which receives
-;; a node structure (the node to be expanded) and a problem structure.
-;; The problem structure has a navigation operator, and we are
-;; interested in the states that can be reached using it.
-;;
-;; So, in the expand-node function, we first call the operator to see what actions are possible.
-;;
-;; The operator gives us back a list of actions. We iterate on this
-;; list of action and, for each one, we call expand-node-action that
-;; creates a node structure with the node that can be reached using
-;; that action.
-;;
+(defun euclidean-norm (x)
+  "Calculates the euclidean (l2) norm of a vector
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;  Creates a list with all the nodes that can be reached from the
-;;  current one using the "succ" operator in a given problem
-;;
-;;  Input:
-;;    node:   the node structure from which we start.
-;;    problem: the problem structure with the list of operators
-;;
-;;  Returns:
-;;    A list (node_1,...,node_n) of nodes that can be reached from the
-;;    given one
-;;
-(defun expand-node (node problem)
-  )
+    INPUT:  x: vector, represented as a list
+
+
+    OUTPUT: euclidean norm of x"
+    (if (null x)
+      nil
+      (sqrt (scalar-product x x))));raiz cuadrada de producto escalar
+
+;;; Ejemplos:
+;;;   (euclidean-norm '(3 -1 5)) ;->5.9161 ;Caso del enunciado
+;;;   (euclidean-norm '()) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; euclidean-distance
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun euclidean-distance (x y)
+  "Calculates the euclidean (l2) distance between two vectors
+
+    INPUT: x: vector, represented as a list
+           y: vector, represented as a list
+
+
+    OUTPUT: euclidean distance between x and y"
+    (cond
+      ((null x) nil)
+      ((null y) nil)
+      (T (euclidean-norm
+            (mapcar #'- x y)))));la norma de la resta de cada elemento de x y
+
+;;; Ejemplos:
+;;;   (euclidean-distance '(1 2 3) '(3 -1 5)) ;->4.1231 ;Caso del enunciado
+;;;   (euclidean-distance '(1 2 3) '()) ; -> NIL ;Caso de parámetros erroneos
+;;;   (euclidean-distance '() '(3 -1 5)) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun cosine-similarity (x y)
+  "Calculates the cosine similarity between two vectors
+
+
+    INPUT:  x: vector, representad as a list
+            y: vector, representad as a list
+
+
+    OUTPUT: cosine similarity between x and y
+
+
+    NOTES:
+       * Evaluates to NIL (not defined)
+         if at least one of the vectors has zero norm.
+       * The two vectors are assumed to have the same length
+
+       -en = euclidean-norm
+       -sp = scalar-product"
+
+       (cond
+         ((null x) nil)
+         ((null y) nil)
+         (t (let ((en (* (euclidean-norm x) (euclidean-norm y)));guardamos el denominador
+            (sp (scalar-product x y)));guardamos el numerador
+              (if (zerop en);miramos si el denominador es 0
+                nil
+                (/ sp en))))));dividimos
+;;; Ejemplos:
+;;;   (cosine-similarity '(1 2 3) '(-2 1 3)) ;->0.6429 ;Caso del enunciado
+;;;   (cosine-similarity '(1 2 3) '()) ; -> NIL ;Caso de parámetros erroneos
+;;;   (cosine-similarity '() '(-2 1 3)) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun angular-distance (x y)
+  "Calculates the angular distance between two vectors
+
+
+   INPUT:  x: vector, representad as a list
+           y: vector, representad as a list
+
+
+   OUTPUT: cosine similarity between x and y
+
+
+   NOTES:
+      * Evaluates to NIL (not well defined)
+        if at least one of the vectors has zero norm.
+      * The two vectors are assumed to have the same length"
+
+      (cond
+        ((null x) nil)
+        ((null y) nil)
+        (t (/ (acos (cosine-similarity x y)) pi))));dividimos entre pi
+;;; Ejemplos:
+;;;   (angular-distance '(1 2 3) '(-2 1 3)) ;->0.2777 ;Caso del enunciado
+;;;   (angular-distance '(1 2 3) '()) ; -> NIL ;Caso de parámetros erroneos
+;;;   (angular-distance '() '(-2 1 3)) ; -> NIL ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; select-vectors
+
+
+(defun select-vectors (lst-vectors test-vector similarity-fn &optional (threshold 0))
+    "Selects from a list the vectors whose similarity to a
+     test vector is above a specified threshold.
+     The resulting list is ordered according to this similarity.
+
+     INPUT:  lst-vectors:   list of vectors
+             test-vector:   test vector, representad as a list
+             similarity-fn: reference to a similarity function
+             threshold:     similarity threshold (default 0)
+
+     OUTPUT: list of pairs. Each pair is a list with
+             a vector and a similarity score.
+             The vectors are such that their similarity to the
+             test vector is above the specified threshold.
+             The list is ordered from larger to smaller
+             values of the similarity score
+
+     NOTES:
+        * Uses remove-if and sort"
+
+        (cond
+          ((null lst-vectors) nil)
+          ((null test-vector) nil)
+          (t (sort;ordenamos por el segundo elemento del par
+          (remove-if;borramos los que sean menores que el corte
+            #'(lambda (x1) (< (second x1) threshold))
+             (mapcar #'(lambda (x0)
+                (list x0 (funcall similarity-fn test-vector x0)))
+              lst-vectors))
+            #'> :key #'second))))
+;;; Ejemplos:
+;;;   (select-vectors '((-1 -1 -1) (-1 -1 1) (-1 1 1) (1 1 1))
+;;;   '(1 1 1) #'cosine-similarity 0.2) ;->(((1 1 1) 1.0) ((-1 1 1) 0.33333334)) ;Caso del enunciado
+;;;   (select-vectors '()
+;;;   '(1 1 1) #'cosine-similarity 0.2) ;->nil ;Caso de parámetros erroneos
+;;;   (select-vectors '((-1 -1 -1) (-1 -1 1) (-1 1 1) (1 1 1))
+;;;   '() #'cosine-similarity 0.2) ;->nil ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
+
+(defun nearest-neighbor (lst-vectors test-vector distance-fn)
+  "Selects from a list the vector that is closest to the
+   reference vector according to the specified distance function
+
+   INPUT:  lst-vectors:   list of vectors
+           ref-vector:    reference vector, represented as a list
+           distance-fn:   reference to a distance function
+
+   OUTPUT: List formed by two elements:
+           (1) the vector that is closest to the reference vector
+               according to the specified distance function
+           (2) The corresponding distance value.
+
+
+   NOTES:
+      * The implementation is recursive
+      * It ignores the vectors in lst-vectors for which the
+        distance value cannot be computed."
+
+        (cond
+          ((null lst-vectors) nil)
+          ((null test-vector) nil)
+          (t (let
+            ((x0;asignamos el primer par
+              (list (first lst-vectors)
+                (funcall distance-fn test-vector (first lst-vectors)))))
+            (if (null (rest lst-vectors))
+              x0;devolvemos ese par si no hay mas (caso base)
+              (first;si no el mas pequeño de este y el de la siguiente recursion
+                (sort
+                  (list
+                    x0
+                    (nearest-neighbor
+                      (rest lst-vectors)
+                      test-vector
+                      distance-fn))
+                #'< :key #'second)))))))
+;;; Ejemplos:
+;;;   (nearest-neighbor '((-1 -1 -1) (-2 2 2) (-1 -1 1))
+;;;   '(1 1 1) #'angular-distance)  ;-> ((-2 2 2) 0.3918)  ;Caso del enunciado
+;;;   (nearest-neighbor '((-1 -1 -1) (-2 2 2) (-1 -1 1))
+;;;   '() #'angular-distance)  ;->nil ;Caso de parámetros erroneos
+;;;   (nearest-neighbor '()
+;;;   '(1 1 1) #'angular-distance)  ;->nil ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+  (defun backward-chaining-aux(goal lst-rules pending-goals)
+
+      (some;miramos si se cumple para alguna de las reglas
+        #'(lambda (x0) (not (null x0)))
+        (mapcar #'(lambda (rule)
+          (when (eq goal (second rule))
+            (every;miramos si se cumple para todas los literales positivos de una regla
+              #'(lambda (x1) (not (null x1)))
+              (mapcar #'(lambda (go);llamamos para cada literal de una regla
+                (backward-chaining-aux
+                  go
+                  (remove rule lst-rules :test #'equal)
+                    (if (null pending-goals)
+                      (list goal)
+                      (cons goal pending-goals))))
+                (first rule)))))
+          lst-rules)))
+
+  (defun backward-chaining (goal lst-rules)
+    "Backward-chaining algorithm for propositional logic
+
+     INPUT: goal:      symbol that represents the goal
+            lst-rules: list of pairs of the form
+                       (<antecedent>  <consequent>)
+                       where <antecedent> is a list of symbols
+                       and  <consequent> is a symbol
+
+
+     OUTPUT: T (goal derived) or NIL (goal cannot be derived)
+
+
+     NOTES:
+          * Implemented with some, every"
+
+
+          (if (null lst-rules)
+            nil
+            (backward-chaining-aux goal lst-rules NIL)));llamamos a la aux
+
+;;; Ejemplos:
+;;;   siendo goal 'q y lst-rules '((NIL A) (NIL B) ((P) Q) ((L M) P) ((B L) M) ((A P) L) ((A B) L)))
+;;;   (backward-chaining goal lst-rules) ;->T ;Caso del enunciado
+;;;   (backward-chaining goal '()) ; -> NIL ;Caso de parámetros erroneos
+;;;   (backward-chaining 't lst-rules) ; -> NIL ;Otro caso en el que no se satisface
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Breadth-first-search in graphs
 ;;;
-;;;  BEGIN Exercise 7 -- Node list management
-;;;
-;;;  Merges two lists of nodes, one of them ordered with respect to a
-;;;  given strategy, keeping the result ordered with respect to the
-;;;  same strategy.
-;;;
-;;;  This is the idea: suppose that the ordering is simply the
-;;;  ordering of natural numbers. We have a "base" list that is
-;;;  already ordered, for example:
-;;;      lst1 --> '(3 6 8 10 13 15)
-;;;
-;;;  and a list that is not necessarily ordered:
-;;;
-;;;      nord --> '(11 5 9 16)
-;;;
-;;;  the call (insert-nodes nord lst1 #'<) would produce
-;;;
-;;;    (3 5 6 8 9 10 11 13 15 16)
-;;;
-;;;  The functionality is divided in three functions. The first,
-;;;  insert-node, inserts a node in a list keeping it ordered. The
-;;;  second, insert-nodes, insert the nodes of the non-ordered list
-;;;  into the ordered, one by one, so that the two lists are merged.
-;;;  The last function, insert-node-strategy is a simple interface that
-;;;  receives a strategy, extracts from it the comparison function,
-;;;  and calls insert-nodes
+(defun new-paths (path node net)
+ (mapcar #'(lambda(n)
+       (cons n path))
+               (rest (assoc node net))))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Inserts a list of nodes in an ordered list keeping the result list
-;; ordered with respect to the given comparison function
-;;
-;; Input:
-;;    nodes: the (possibly unordered) node list to be inserted in the
-;;           other list
-;;    lst-nodes: the (ordered) list of nodes in which the given nodes
-;;               are to be inserted
-;;    node-compare-p: a function node x node --> 2 that returns T if the
-;;                    first node comes first than the second.
-;;
-;; Returns:
-;;    An ordered list of nodes which includes the nodes of lst-nodes and
-;;    those of the list "nodes@. The list is ordered with respect to the
-;;   criterion node-compare-p.
-;;
-(defun insert-nodes (nodes lst-nodes node-compare-p)
-)
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Inserts a list of nodes in an ordered list keeping the result list
-;; ordered with respect the given strategy
-;;
-;; Input:
-;;    nodes: the (possibly unordered) node list to be inserted in the
-;;           other list
-;;    lst-nodes: the (ordered) list of nodes in which the given nodes
-;;               are to be inserted
-;;    strategy: the strategy that gives the criterion for node
-;;              comparison
-;;
-;; Returns:
-;;    An ordered list of nodes which includes the nodes of lst-nodes and
-;;    those of the list "nodes@. The list is ordered with respect to the
-;;    criterion defined in te strategy.
-;;
-;; Note:
-;;   You will note that this function is just an interface to
-;;   insert-nodes: it allows to call using teh strategy as a
-;;   parameter; all it does is to "extract" the compare function and
-;;   use it to call insert-nodes.
-;;
-(defun insert-nodes-strategy (nodes lst-nodes strategy)
-  )
-
-
-;;
-;;    END: Exercize 7 -- Node list management
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; BEGIN: Exercise 8 -- Definition of the A* strategy
-;;
-;; A strategy is, basically, a comparison function between nodes to tell
-;; us which nodes should be analyzed first. In the A* strategy, the first
-;; node to be analyzed is the one with the smallest value of g+h
-;;
-(defparameter *A-star*
-  NIL
-  )
-;;
-;; END: Exercise 8 -- Definition of the A* strategy
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;;    BEGIN Exercise 9: Search algorithm
-;;;
-;;;    Searches a path that solves a given problem using a given search
-;;;    strategy. Here too we have two functions: one is a simple
-;;;    interface that extracts the relevant information from the
-;;;    problem and strategy structure, builds an initial open-nodes
-;;;    list (which contains only the starting node defined by the
-;;;    state), and initial closed node list (the empty list), and calls
-;;;    the auxiliary function.
-;;;
-;;;    The auxiliary is a recursive function that extracts nodes from
-;;;    the open list, expands them, inserts the neighbors in the
-;;;    open-list, and the expanded node in the closed list. There is a
-;;;    caveat: with this version of the algorithm, a node can be
-;;;    inserted in the open list more than once. In this case, if we
-;;;    extract a node in the open list and the following two condition old:
-;;;
-;;;     the node we extract is already in the closed list (it has
-;;;     already been expanded)
-;;;       and
-;;;     the path estimation that we have is better than the one we
-;;;     obtain from the node in the open list
-;;;
-;;;     then we ignore the node.
-;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;;  Interface function for the graph search.
-;;
-;;  Input:
-;;    problem: the problem structure from which we get the general
-;;             information (goal testing function, action operatos,
-;;             starting node, heuristic, etc.
-;;    strategy: the strategy that decide which node is the next extracted
-;;              from the open-nodes list
-;;
-;;    Returns:
-;;     NIL: no path to the destination nodes
-;;     If these is a path, returns the node containing the final state.
-;;
-;;    See the graph-search-aux for the complete structure of the
-;;    returned node.
-;;    This function simply prepares the data for the auxiliary
-;;    function: creates an open list with a single node (the source)
-;;    and an empty closed list.
-;;
-(defun graph-search (problem strategy)
-)
-
-
-;;
-;; END: Exercise 9 -- Search algorithm
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;
-;;;    BEGIN Exercise 10: Solution path
-;;;
-;*** solution-path ***
-
-(defun solution-path (node)
-)
-
+(defun bfs (end queue net)
+  (if (null queue)
+      NIL
+    (let* ((path (first queue))
+           (node (first path)))
+      (if (eql node end)
+          (reverse path)
+          (bfs end
+               (append (rest queue)
+                       (new-paths path node net))
+               net)))))
 
 ;;;
-;;;    END Exercise 10: Solution path / action sequence
-;;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+(defun shortest-path (start end net)
+  (bfs end (list (list start)) net))
+
+;;; Ejemplos:
+;;;   (shortest-path 'c 'd '((a d) (b d f) (c e) (d f) (e b f) (f))) ;->(C E B D) ;Caso del enunciado
+;;;   (shortest-path 'c 'f '((a b c d e) (b a d e f) (c a g) (d a b g h)
+;;;   (e a b g h) (f b h) (g c d e h) (h d e f g))) ; -> (C A B F) ;Caso 2 del enunciado
+;;;   (shortest-path 'c 'f '((a b) (b c) (c a) (d a))) ; -> entra en un bucle infinito ;Caso de parámetros erroneos
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defun bfs-improved (end queue net)
+  (if (null queue)
+      NIL
+    (let* ((path (first queue))
+           (node (first path)))
+      (if (eql node end)
+          (reverse path)
+          (bfs-improved end
+               (append (rest queue)
+                       (new-paths path node net))
+               (remove (assoc node net) net  :test #'equal))))));borramos el
+                 ;que se acaba de utilizar para elimiar bucles infinitos
+
+
+
+
+(defun shortest-path-improved (start end net)
+  (bfs-improved end (list (list start)) net))
+
+;;; Ejemplos:
+;;;   (shortest-path-improved 'c 'd '((a d) (b d f) (c e) (d f) (e b f) (f))) ;->(C E B D) ;Caso del enunciado
+;;;   (shortest-path-improved 'c 'f '((a b c d e) (b a d e f) (c a g) (d a b g h)
+;;;   (e a b g h) (f b h) (g c d e h) (h d e f g))) ; -> (C A B F) ;Caso 2 del enunciado
+;;;   (shortest-path-improved 'c 'f '((a b) (b c) (c a) (d a))) ; -> nil ;Caso en el que el otro algoritmo fallaba
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
