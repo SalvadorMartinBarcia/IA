@@ -38,7 +38,7 @@
   action          ; action that generated the current node from its parent
   (depth 0)       ; depth in the search tree
   (g 0)           ; cost of the path from the initial state to this node
-  (h 0)           ; value of the heurstic
+  (h 0)           ; value of the heuristic
   (f 0))          ; g + h
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -51,7 +51,7 @@
   name              ; Name of the operator that generated the action
   origin            ; City to which the action is applied
   final             ; City in which we are as a result of the application of the action
-  cost )            ; Cost of the action
+  cost)            ; Cost of the action
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -137,7 +137,7 @@
 ;;
 
 (defun f-h (city heuristic)
-  (second (assoc city heuristic)))
+  (second (assoc city heuristic))) ;devuelve la heuristica de la ciudad
 
 
 ;;
@@ -168,14 +168,13 @@
 (defun navigate (city lst-edges)
   (mapcan
     #'(lambda (x)
-      (when (equal city (first x))
-        (list
-          (make-action :name 'action
-            :origin (first x)
-            :final (second x)
-            :cost (third x)))))
-          lst-edges)
-  )
+        (when (equal city (first x)) ;lo hace solo para los city
+          (list ;creacion de lista para el buen uso de mapcan
+            (make-action :name 'action ;crea las acciones con lst-edges
+              :origin (first x)
+              :final (second x)
+              :cost (third x)))))
+          lst-edges))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -192,8 +191,7 @@
     (cond
       ((equal (node-city node) mandator) t)
       ((null (node-parent node)) nil)
-      (t (f-goal-test-aux (node-parent node) mandator)))
-  )
+      (t (f-goal-test-aux (node-parent node) mandator))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Goal test
@@ -213,12 +211,13 @@
 ;;
 (defun f-goal-test (node destination mandatory)
   (cond
-    ((null (find (node-city node) destination)) nil)
-    ((null mandatory) t)
+    ((null node) nil)
+    ((null (find (node-city node) destination)) nil) ;si no es un destino nil
+    ((null mandatory) t) ;no hay ciudades obligatorias
     (t
       (every #'(lambda (x) x)
-        (mapcar #'(lambda (mandator)
-          (f-goal-test-aux node mandator))
+        (mapcar #'(lambda (mandator) ;para cada ciudad en mandatory
+          (f-goal-test-aux node mandator)) ;comprueba si ha visitado la ciudad
         mandatory)))))
 
 ;;
@@ -230,15 +229,13 @@
 ;;
 ;; BEGIN: Exercise 4 -- Equal predicate for search states
 ;;
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Determines if two nodes are equivalent with respect to the solution
 ;; of the problem: two nodes are equivalent if they represent the same city
 ;, and if the path they contain includes the same mandatory cities.
 ;;  Input:
-;;    node-1, node-1: the two nodes that we are comparing, each one
+;;    node-1, node-2: the two nodes that we are comparing, each one
 ;;                    defining a path through the parent links
 ;;    mandatory:  list with the names of the cities that is mandatory to visit
 ;;
@@ -247,10 +244,24 @@
 ;;    NIL: The nodes are not equivalent
 ;;
 (defun f-search-state-equal (node-1 node-2 &optional mandatory)
-  )
+  (cond
+    ((or (null node-1) (null node-2)) nil)
+    ((and ;true si se cumplen las 3 
+      (equal ;comprueba si es la misma ciudad
+        (node-city node-1) 
+        (node-city node-2))
+      (f-goal-test ;comprueba ciudades obligatorias
+        node-1 
+        (list (node-city node-1)) 
+        mandatory)
+      (f-goal-test ;comprueba ciudades obligatorias
+        node-2 
+        (list (node-city node-2)) 
+        mandatory))
+      t)))
 
 ;;
-;; END: Exercise  -- Equal predicate for search states
+;; END: Exercise 4 -- Equal predicate for search states
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -270,8 +281,14 @@
 ;;  navigate function.
 ;;
 
-(defparameter *travel*
-  NIL)
+(defparameter *travel* ;crea el problema del enunciado
+  (make-problem
+    :cities               *cities*
+    :initial-city         *origin*
+    :f-h                  #'(lambda (city) (f-h city *heuristic*))
+    :f-goal-test          #'(lambda (node) (f-goal-test node *destination* *mandatory*))
+    :f-search-state-equal #'(lambda (node-1 node-2) (f-search-state-equal node-1 node-2 *mandatory*))
+    :succ                 #'(lambda (node) (navigate (node-city node) *trains*))))
 
 
 ;;
@@ -296,6 +313,17 @@
 ;; creates a node structure with the node that can be reached using
 ;; that action.
 ;;
+(defun expand-node-action (node action problem)
+  (make-node;
+    :city   (action-final action)
+    :parent node
+    :action action
+    :depth  (+ (node-depth node) 1)
+    :g      (+ (node-g node) (action-cost action)) ;aumentamos el camino
+    :h      (funcall (problem-f-h problem) (action-final action)) ;calculamos la heuristica
+    :f      (+
+      (+ (node-g node) (action-cost action))
+      (funcall (problem-f-h problem) (action-final action))))) ;calculamos f
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -311,10 +339,15 @@
 ;;    given one
 ;;
 (defun expand-node (node problem)
-  )
-
-
-
+  (if (or (null node) (null problem))
+    nil
+    (mapcar ;creamos un nodo para cada accion
+      #'(lambda (action)
+          (expand-node-action ;sacamos todas las acciones
+            node
+            action
+            problem))
+          (funcall (problem-succ problem) node))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
@@ -344,7 +377,8 @@
 ;;;  The last function, insert-node-strategy is a simple interface that
 ;;;  receives a strategy, extracts from it the comparison function,
 ;;;  and calls insert-nodes
-
+(defun insert-node (node lst-nodes node-compare-p)
+  (sort (cons node lst-nodes) node-compare-p)) ;insertamos y ordenamos
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -365,8 +399,12 @@
 ;;   criterion node-compare-p.
 ;;
 (defun insert-nodes (nodes lst-nodes node-compare-p)
-)
-
+  (if (null nodes)
+    lst-nodes
+    (insert-nodes ;insertamos cada uno de los nodos
+      (rest nodes)
+      (insert-node (first nodes) lst-nodes node-compare-p)
+      node-compare-p)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -393,7 +431,12 @@
 ;;   use it to call insert-nodes.
 ;;
 (defun insert-nodes-strategy (nodes lst-nodes strategy)
-  )
+  (if (or (null nodes) (null lst-nodes) (null strategy))
+    nil
+    (insert-nodes 
+      nodes 
+      lst-nodes 
+      (strategy-node-compare-p strategy)))) ;sacamos la funcion de comparacion
 
 
 ;;
@@ -411,9 +454,14 @@
 ;; us which nodes should be analyzed first. In the A* strategy, the first
 ;; node to be analyzed is the one with the smallest value of g+h
 ;;
+(defun f-leq (node-1 node-2)
+  (<= (node-f node-1) ;A* evalua el nodo con menor f
+      (node-f node-2)))
+
 (defparameter *A-star*
-  NIL
-  )
+  (make-strategy
+    :name           'A-star
+    :node-compare-p #'f-leq))
 ;;
 ;; END: Exercise 8 -- Definition of the A* strategy
 ;;
@@ -447,7 +495,51 @@
 ;;;     then we ignore the node.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defun exp-cond (node closed-nodes)
+  (if (not ;condicion de si no esta en closed-nodes
+        (find 
+          (node-city node) 
+          (mapcar
+            #'(lambda (closed-node) 
+              (node-city closed-node)) 
+            closed-nodes)))
+  t
+  (every ;si esta en closed-nodes evalua si el nuevo tiene un mejor path
+    #'(lambda (x) 
+      (< (node-g node) (node-g x)))
+    (remove-if-not
+      #'(lambda (close) 
+        (eq (node-city node) (node-city close))) 
+      closed-nodes))))
 
+
+(defun graph-search-rec (open-nodes closed-nodes problem strategy)
+  (let ((node-first (first open-nodes)))
+    (cond
+      ((null open-nodes) nil) ;condicion de salida si no se encuentra camino.
+      ((funcall ;comprobacion de si el nodo a evaluar es el destino
+        (problem-f-goal-test problem)
+        node-first) node-first)
+      ((exp-cond node-first closed-nodes) ;caso de recursion
+        (graph-search-rec
+          (remove 
+            node-first 
+            (insert-nodes-strategy ;open nodes con los nuevos y sin el explorado
+              (expand-node node-first problem)
+              open-nodes
+              strategy))
+          (if (null closed-nodes) ;closed nodes con el nodo explorado
+            (list node-first)
+            (cons node-first closed-nodes))
+          problem
+          strategy))
+      (t (graph-search-rec ;en caso de que el nodo ya se haya explordo
+          (remove          ;se saca de open nodes
+            node-first 
+            open-nodes)
+          closed-nodes
+          problem
+          strategy)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -456,7 +548,7 @@
 ;;  Input:
 ;;    problem: the problem structure from which we get the general
 ;;             information (goal testing function, action operatos,
-;;             starting node, heuristic, etc.
+;;             starting node, heuristic, etc.)
 ;;    strategy: the strategy that decide which node is the next extracted
 ;;              from the open-nodes list
 ;;
@@ -471,8 +563,22 @@
 ;;    and an empty closed list.
 ;;
 (defun graph-search (problem strategy)
-)
+  (if (or (null problem) (null strategy))
+    nil
+    (graph-search-rec
+      (list (make-node ;nodo inicial
+        :city   (problem-initial-city problem)))
+      nil ;nodos visitados
+      problem ;problema para usar las funciones necesarias
+      strategy)))
 
+
+;
+; Solve a problem using the A* strategy ;
+(defun a-star-search (problem)
+  (if (null problem)
+    nil
+    (graph-search problem *A-star*))) ;llama a la busqueda con el algoritmo A*
 
 ;;
 ;; END: Exercise 9 -- Search algorithm
@@ -487,10 +593,55 @@
 ;*** solution-path ***
 
 (defun solution-path (node)
-)
+  (cond
+    ((null node) nil)
+    ((null (node-parent node))
+      (list (node-city node)))
+    (t 
+      (append ;creacion de lista con los nombres de todos los nodos del path
+        (solution-path (node-parent node)) 
+        (list (node-city node))))))
+
+(defun action-sequence (node)
+  (cond 
+    ((null node) nil)
+    ((null (node-parent (node-parent node))) ;salimos uno antes porque 
+      (list (node-action node)))             ;el primero no tiene action
+    (t 
+      (append ;creacion de lista con todas las acciones llevadas 
+        (action-sequence (node-parent node)) ;a cabo para encontrar el nodo
+        (list (node-action node))))))
 
 
 ;;;
 ;;;    END Exercise 10: Solution path / action sequence
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;;    BEGIN Exercise 11: Otras estrategias de busqueda.
+;;;
+(defun depth-first-node-compare-p (node-1 node-2)
+  (>= (node-depth node-1) ;evalua el que es mas profundo
+        (node-depth node-2)))
+
+(defparameter *depth-first* 
+  (make-strategy
+    :name 'depth-first
+    :node-compare-p #'depth-first-node-compare-p))
+
+
+(defun breadth-first-node-compare-p (node-1 node-2)
+  (<= (node-depth node-1) ;evalua el que es menos profundo
+        (node-depth node-2)))
+
+(defparameter *breadth-first* 
+  (make-strategy
+    :name 'depth-first
+    :node-compare-p #'breadth-first-node-compare-p))
+
+;;;
+;;;    END Exercise 11: Otras estrategias de busqueda.
 ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
