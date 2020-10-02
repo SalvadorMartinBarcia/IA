@@ -1,6 +1,6 @@
 ;; Alias que aparece en el ranking 
 
-(defvar ​*alias*​ '|Posicion|) 
+(defvar *alias* '|PosicionSB|)
 
 ;; Función de evaluación heurística 
 

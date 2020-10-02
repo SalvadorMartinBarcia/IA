@@ -22,11 +22,11 @@
 (round-robin
  (list (alpha-beta-searcher 2 #'count-difference)
        (alpha-beta-searcher 2 #'mobility)
-       (alpha-beta-searcher 2 #'eval-fn))
+       #'random-strategy)
  5
  10
  '(count-difference
    mobility
-   eval-fn)
+   random-strategy)
  )
 
